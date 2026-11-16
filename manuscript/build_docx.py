@@ -1,12 +1,12 @@
 """Build IEEE-formatted .docx and classic .doc manuscripts from manuscript.md.
 
-Resolves:
-  - [@handle] and [@h1; @h2] -> numeric IEEE brackets [1], [2]-[4], [5], [7]
-    assigned strictly by order of first appearance in the manuscript.
-  - {fig:id}, {tab:id}, {eq:id} -> Fig. 1, Table I, (1), etc.
-  - LaTeX inline math ($...$), %EQ blocks, %TABLE blocks, %FIG blocks,
-    section headers, bold/italic/code spans, and the IEEE References section.
-  - Converts the finished .docx to binary Word 97-2003 (.doc) via Spire.Doc.
+Formatting spec:
+  - Font: Times New Roman, 12 pt throughout body, captions, headings, and references
+  - Line spacing: 1.5 throughout body, abstract, keywords, bullets, and references
+  - Target length: exactly 16 pages
+  - IEEE bracketed inline citations [1], [2]-[4] resolved strictly by first appearance
+  - Every reference entry ends with an explicit DOI
+  - Converts finished .docx to binary Word 97-2003 (.doc) via Spire.Doc
 """
 
 from __future__ import annotations
@@ -29,6 +29,10 @@ sys.path.insert(0, HERE)
 from refs import REFS  # noqa: E402
 
 ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"]
+
+FONT_FAMILY = "Times New Roman"
+BODY_PT = 12.0
+LINE_SPACING = 1.5
 
 LATEX_MAP = [
     (r"\\left\\lVert\s*", "\u2016"),
@@ -91,8 +95,6 @@ LATEX_MAP = [
     (r"\\mathcal\{N\}", "\U0001d4a9"),
     (r"\\mathcal\{B\}", "\U0001d49d"),
     (r"\\mathbf\{I\}", "I"),
-    (r"\\bar\{\\pi\}", "\u03c0\u0304"),
-    (r"\\tilde\{g\}", "g\u0303"),
     (r"\\qquad", "    "),
     (r"\\quad", "  "),
     (r"\\;", " "),
@@ -102,7 +104,6 @@ LATEX_MAP = [
 
 
 def format_ieee_cites(nums: list[int]) -> str:
-    """Format sorted unique citation ints into IEEE bracket notation."""
     nums = sorted(dict.fromkeys(nums))
     if not nums:
         return ""
@@ -133,7 +134,6 @@ def clean_typography(text: str) -> str:
 
 
 def _extract_brace(s: str, start: int) -> tuple[str, int]:
-    """Return (contents, next_index) for a balanced '{...}' starting at s[start]=='{'."""
     assert s[start] == "{"
     depth = 1
     j = start + 1
@@ -147,7 +147,6 @@ def _extract_brace(s: str, start: int) -> tuple[str, int]:
 
 
 def _expand_fracs(s: str) -> str:
-    """Recursively expand nested \\frac{num}{den}."""
     while "\\frac{" in s:
         idx = s.index("\\frac{")
         num, after_num = _extract_brace(s, idx + 5)
@@ -165,13 +164,7 @@ def _expand_fracs(s: str) -> str:
 
 
 def render_math_tokens(expr: str) -> list[tuple[str, str]]:
-    """Convert a simple LaTeX math snippet into (kind, text) tokens.
-
-    kind in {'norm', 'it', 'sub', 'sup', 'bold'}.
-    """
     s = _expand_fracs(expr.strip())
-
-    # Replace \mathrm{...} with sentinel
     mathrm_store: list[str] = []
 
     def _keep_rm(m: re.Match) -> str:
@@ -184,7 +177,6 @@ def render_math_tokens(expr: str) -> list[tuple[str, str]]:
     for pat, rep in LATEX_MAP:
         s = re.sub(pat, rep, s)
 
-    # Restore \mathrm tokens as markers during tokenisation
     tokens: list[tuple[str, str]] = []
     i = 0
     n = len(s)
@@ -208,7 +200,6 @@ def render_math_tokens(expr: str) -> list[tuple[str, str]]:
                 inner = re.sub(
                     r"\x00RM(\d+)\x00", lambda mm: mathrm_store[int(mm.group(1))], inner
                 )
-                # Flatten nested _{k} inside subscripts (e.g., n_{k}) -> nk
                 for pat, rep in LATEX_MAP:
                     inner = re.sub(pat, rep, inner)
                 inner = re.sub(r"_\{([^{}]+)\}", r"\1", inner)
@@ -221,15 +212,12 @@ def render_math_tokens(expr: str) -> list[tuple[str, str]]:
         elif s[i] in ("{", "}"):
             i += 1
         elif s[i].isalpha():
-            # Multi-letter operator words stay upright; single Latin vars italic
             j = i
             while j < n and s[j].isalpha():
                 j += 1
             word = s[i:j]
             if word in {"min", "max", "arg", "exp", "log", "Pr", "I"}:
                 tokens.append(("norm", word))
-            elif len(word) == 1:
-                tokens.append(("it", word))
             else:
                 tokens.append(("it", word))
             i = j
@@ -265,7 +253,7 @@ def shade_cell(cell, hex_color: str) -> None:
     cell._tc.get_or_add_tcPr().append(shd)
 
 
-def set_cell_margins(cell, top=55, bottom=55, left=80, right=80) -> None:
+def set_cell_margins(cell, top=36, bottom=36, left=60, right=60) -> None:
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = OxmlElement("w:tcMar")
     for m, val in (("top", top), ("bottom", bottom), ("left", left), ("right", right)):
@@ -282,10 +270,10 @@ def add_page_number_footer(section) -> None:
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    r1 = p.add_run("FedWear-Sepsis  |  IEEE Manuscript Preprint  \u2014  Page ")
-    r1.font.name = "Times New Roman"
-    r1.font.size = Pt(8.5)
-    r1.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+    r1 = p.add_run("FedWear-Sepsis  |  IEEE Manuscript  \u2014  Page ")
+    r1.font.name = FONT_FAMILY
+    r1.font.size = Pt(BODY_PT)
+    r1.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
 
     fldSimple = OxmlElement("w:fldSimple")
     fldSimple.set(qn("w:instr"), "PAGE")
@@ -296,16 +284,12 @@ def add_rich_text(
     p,
     text: str,
     *,
-    base_size: float = 10.0,
+    base_size: float = BODY_PT,
     base_bold: bool = False,
     base_italic: bool = False,
     color: RGBColor | None = None,
 ) -> None:
-    """Emit runs for markdown inline (**bold**, *italic*, `code`, $math$)."""
-    # Split on $...$, **...**, *...*, `...`
-    pattern = re.compile(
-        r"(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)"
-    )
+    pattern = re.compile(r"(\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
     parts = pattern.split(text)
     for part in parts:
         if not part:
@@ -313,7 +297,7 @@ def add_rich_text(
         if part.startswith("$") and part.endswith("$") and len(part) >= 2:
             for kind, tok in render_math_tokens(part[1:-1]):
                 r = p.add_run(tok)
-                r.font.name = "Times New Roman"
+                r.font.name = FONT_FAMILY
                 r.font.size = Pt(base_size)
                 r.bold = base_bold or (kind == "bold")
                 r.italic = True if kind == "it" else base_italic
@@ -343,14 +327,15 @@ def add_rich_text(
             )
         elif part.startswith("`") and part.endswith("`"):
             r = p.add_run(part[1:-1])
-            r.font.name = "Courier New"
-            r.font.size = Pt(base_size - 0.5)
+            r.font.name = FONT_FAMILY
+            r.font.size = Pt(base_size)
+            r.italic = True
             r.bold = base_bold
             if color:
                 r.font.color.rgb = color
         else:
             r = p.add_run(clean_typography(part))
-            r.font.name = "Times New Roman"
+            r.font.name = FONT_FAMILY
             r.font.size = Pt(base_size)
             r.bold = base_bold
             r.italic = base_italic
@@ -359,7 +344,6 @@ def add_rich_text(
 
 
 def preprocess_references_and_labels(raw_md: str):
-    """First pass: assign figure, table, equation, and IEEE citation numbers."""
     fig_map: dict[str, int] = {}
     tab_map: dict[str, int] = {}
     eq_map: dict[str, int] = {}
@@ -378,30 +362,10 @@ def preprocess_references_and_labels(raw_md: str):
             if eid not in eq_map:
                 eq_map[eid] = len(eq_map) + 1
 
-    # Replace {fig:x}, {tab:x}, {eq:x}
-    def _sub_fig(m: re.Match) -> str:
-        k = m.group(1)
-        if k not in fig_map:
-            raise KeyError(f"Unknown figure label: {k}")
-        return f"Fig. {fig_map[k]}"
+    resolved = re.sub(r"\{fig:(\w+)\}", lambda m: f"Fig. {fig_map[m.group(1)]}", raw_md)
+    resolved = re.sub(r"\{tab:(\w+)\}", lambda m: f"Table {ROMAN[tab_map[m.group(1)]]}", resolved)
+    resolved = re.sub(r"\{eq:(\w+)\}", lambda m: f"({eq_map[m.group(1)]})", resolved)
 
-    def _sub_tab(m: re.Match) -> str:
-        k = m.group(1)
-        if k not in tab_map:
-            raise KeyError(f"Unknown table label: {k}")
-        return f"Table {ROMAN[tab_map[k]]}"
-
-    def _sub_eq(m: re.Match) -> str:
-        k = m.group(1)
-        if k not in eq_map:
-            raise KeyError(f"Unknown equation label: {k}")
-        return f"({eq_map[k]})"
-
-    resolved = re.sub(r"\{fig:(\w+)\}", _sub_fig, raw_md)
-    resolved = re.sub(r"\{tab:(\w+)\}", _sub_tab, resolved)
-    resolved = re.sub(r"\{eq:(\w+)\}", _sub_eq, resolved)
-
-    # Resolve [@h1; @h2] strictly by order of first appearance in the manuscript
     cite_order: dict[str, int] = {}
 
     def _sub_cite(m: re.Match) -> str:
@@ -419,25 +383,34 @@ def preprocess_references_and_labels(raw_md: str):
     return resolved, fig_map, tab_map, eq_map, cite_order
 
 
-def build_docx(md_path: str, out_docx: str) -> dict:
+def build_docx(
+    md_path: str,
+    out_docx: str,
+    *,
+    margin_in: float = 0.70,
+    para_after_pt: float = 0.0,
+    fig_width_in: float = 4.30,
+    table_pt: float = 12.0,
+) -> dict:
     raw_md = open(md_path, encoding="utf-8").read()
     md, fig_map, tab_map, eq_map, cite_order = preprocess_references_and_labels(raw_md)
 
     doc = Document()
 
-    # Configure page geometry (US Letter, 0.85 in top/bottom, 0.9 in left/right -> 6.7 in content width)
     section = doc.sections[0]
     section.page_width = Inches(8.5)
     section.page_height = Inches(11.0)
-    section.top_margin = Inches(0.85)
-    section.bottom_margin = Inches(0.85)
-    section.left_margin = Inches(0.90)
-    section.right_margin = Inches(0.90)
+    section.top_margin = Inches(margin_in)
+    section.bottom_margin = Inches(margin_in)
+    section.left_margin = Inches(margin_in)
+    section.right_margin = Inches(margin_in)
+    content_width_in = 8.5 - 2 * margin_in
     add_page_number_footer(section)
 
     normal = doc.styles["Normal"]
-    normal.font.name = "Times New Roman"
-    normal.font.size = Pt(10)
+    normal.font.name = FONT_FAMILY
+    normal.font.size = Pt(BODY_PT)
+    normal.paragraph_format.line_spacing = LINE_SPACING
 
     lines = md.splitlines()
     i = 0
@@ -447,35 +420,33 @@ def build_docx(md_path: str, out_docx: str) -> dict:
 
     while i < n:
         line = lines[i].rstrip()
-
         if not line.strip():
             i += 1
             continue
 
-        # Title
+        # Title (Times New Roman, 12 pt bold, 1.5 line spacing)
         if line.startswith("%TITLE "):
-            title = line[7:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(8)
-            p.paragraph_format.line_spacing = 1.15
-            add_rich_text(p, title, base_size=18.0, base_bold=True)
+            p.paragraph_format.space_after = Pt(6)
+            p.paragraph_format.line_spacing = LINE_SPACING
+            add_rich_text(p, line[7:].strip(), base_size=BODY_PT, base_bold=True)
             i += 1
             continue
 
-        # Authors
+        # Authors (12 pt Times New Roman, 1.5 spacing)
         if line.startswith("%AUTHORS "):
-            authors = line[9:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(4)
-            add_rich_text(p, authors, base_size=11.0)
+            p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.line_spacing = LINE_SPACING
+            add_rich_text(p, line[9:].strip(), base_size=BODY_PT)
             i += 1
             continue
 
-        # Affiliation / manuscript footnote block (placed cleanly below authors)
+        # Affiliation (12 pt Times New Roman, 1.5 spacing)
         if line.startswith("%AFFIL "):
             affils.append(line[7:].strip())
             i += 1
@@ -483,133 +454,119 @@ def build_docx(md_path: str, out_docx: str) -> dict:
                 for idx_a, af in enumerate(affils):
                     p = doc.add_paragraph()
                     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p.paragraph_format.left_indent = Inches(0.35)
-                    p.paragraph_format.right_indent = Inches(0.35)
                     p.paragraph_format.space_before = Pt(0)
-                    p.paragraph_format.space_after = Pt(8 if idx_a == len(affils) - 1 else 2)
-                    p.paragraph_format.line_spacing = 1.08
-                    add_rich_text(
-                        p,
-                        af,
-                        base_size=8.5,
-                        color=RGBColor(0x33, 0x33, 0x33),
-                    )
+                    p.paragraph_format.space_after = Pt(6 if idx_a == len(affils) - 1 else 2)
+                    p.paragraph_format.line_spacing = LINE_SPACING
+                    add_rich_text(p, af, base_size=BODY_PT, color=RGBColor(0x22, 0x22, 0x22))
             continue
 
-        # Abstract (IEEE style: bold italic "Abstract—" run-in, 9 pt bold/regular)
+        # Abstract (12 pt Times New Roman, 1.5 spacing)
         if line.startswith("%ABSTRACT "):
-            abst = line[10:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.left_indent = Inches(0.30)
-            p.paragraph_format.right_indent = Inches(0.30)
-            p.paragraph_format.space_before = Pt(6)
-            p.paragraph_format.space_after = Pt(5)
-            p.paragraph_format.line_spacing = 1.12
+            p.paragraph_format.space_before = Pt(4)
+            p.paragraph_format.space_after = Pt(4)
+            p.paragraph_format.line_spacing = LINE_SPACING
             lead = p.add_run("Abstract\u2014")
-            lead.font.name = "Times New Roman"
-            lead.font.size = Pt(9.5)
+            lead.font.name = FONT_FAMILY
+            lead.font.size = Pt(BODY_PT)
             lead.bold = True
             lead.italic = True
-            add_rich_text(p, abst, base_size=9.5, base_bold=True)
+            add_rich_text(p, line[10:].strip(), base_size=BODY_PT)
             i += 1
             continue
 
-        # Index Terms / Keywords (IEEE style: "Index Terms—")
+        # Keywords / Index Terms (12 pt Times New Roman, 1.5 spacing)
         if line.startswith("%KEYWORDS "):
-            kw = line[10:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.left_indent = Inches(0.30)
-            p.paragraph_format.right_indent = Inches(0.30)
             p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(12)
-            p.paragraph_format.line_spacing = 1.12
+            p.paragraph_format.space_after = Pt(8)
+            p.paragraph_format.line_spacing = LINE_SPACING
             lead = p.add_run("Index Terms\u2014")
-            lead.font.name = "Times New Roman"
-            lead.font.size = Pt(9.5)
+            lead.font.name = FONT_FAMILY
+            lead.font.size = Pt(BODY_PT)
             lead.bold = True
             lead.italic = True
-            add_rich_text(p, kw, base_size=9.5, base_bold=True)
-            # Thin horizontal rule separating front matter from Section I
-            hr = doc.add_paragraph()
-            hr.paragraph_format.space_before = Pt(0)
-            hr.paragraph_format.space_after = Pt(8)
+            add_rich_text(p, line[10:].strip(), base_size=BODY_PT)
             pBdr = parse_xml(
-                f'<w:pBdr {nsdecls("w")}><w:bottom w:val="single" w:sz="6" w:space="1" w:color="888888"/></w:pBdr>'
+                f'<w:pBdr {nsdecls("w")}><w:bottom w:val="single" w:sz="6" w:space="4" w:color="888888"/></w:pBdr>'
             )
-            hr._p.get_or_add_pPr().append(pBdr)
+            p._p.get_or_add_pPr().append(pBdr)
             i += 1
             continue
 
-        # Level-1 IEEE heading (# I. INTRODUCTION) -> centered small-caps/uppercase 10 pt
+        # Level-1 IEEE heading (12 pt bold uppercase centered, 1.5 spacing)
         if line.startswith("# "):
             htext = line[2:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(12)
-            p.paragraph_format.space_after = Pt(5)
+            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_after = Pt(3)
+            p.paragraph_format.line_spacing = LINE_SPACING
             p.paragraph_format.keep_with_next = True
             r = p.add_run(clean_typography(htext.upper()))
-            r.font.name = "Times New Roman"
-            r.font.size = Pt(10.5)
+            r.font.name = FONT_FAMILY
+            r.font.size = Pt(BODY_PT)
             r.bold = True
             first_para_after_heading = True
             i += 1
             continue
 
-        # Level-2 IEEE heading (## A. Subheading) -> left italic 10 pt
+        # Level-2 IEEE heading (12 pt bold italic left, 1.5 spacing)
         if line.startswith("## "):
             htext = line[3:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            p.paragraph_format.space_before = Pt(9)
-            p.paragraph_format.space_after = Pt(3.5)
+            p.paragraph_format.space_before = Pt(6)
+            p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.line_spacing = LINE_SPACING
             p.paragraph_format.keep_with_next = True
-            add_rich_text(p, htext, base_size=10.0, base_italic=True, base_bold=True)
+            add_rich_text(p, htext, base_size=BODY_PT, base_italic=True, base_bold=True)
             first_para_after_heading = True
             i += 1
             continue
 
-        # Equation block: %EQ id | expr
+        # Equation block (12 pt Times New Roman)
         if line.startswith("%EQ "):
             parts = line[4:].split("|", 1)
-            eid = parts[0].strip()
-            expr = parts[1].strip()
+            eid, expr = parts[0].strip(), parts[1].strip()
             eq_num = eq_map[eid]
 
             tbl = doc.add_table(rows=1, cols=2)
             tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
             tbl.autofit = False
             c_eq, c_num = tbl.rows[0].cells
-            c_eq.width = Inches(5.9)
-            c_num.width = Inches(0.7)
+            c_eq.width = Inches(content_width_in - 0.75)
+            c_num.width = Inches(0.75)
             set_cell_borders(c_eq)
             set_cell_borders(c_num)
-            set_cell_margins(c_eq, top=40, bottom=40, left=40, right=40)
-            set_cell_margins(c_num, top=40, bottom=40, left=20, right=20)
+            set_cell_margins(c_eq, top=24, bottom=24, left=24, right=24)
+            set_cell_margins(c_num, top=24, bottom=24, left=16, right=16)
             c_eq.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             c_num.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
             pe = c_eq.paragraphs[0]
             pe.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            pe.paragraph_format.space_before = Pt(2)
-            pe.paragraph_format.space_after = Pt(2)
-            add_rich_text(pe, f"${expr}$", base_size=10.0)
+            pe.paragraph_format.space_before = Pt(1)
+            pe.paragraph_format.space_after = Pt(1)
+            pe.paragraph_format.line_spacing = LINE_SPACING
+            add_rich_text(pe, f"${expr}$", base_size=BODY_PT)
 
             pn = c_num.paragraphs[0]
             pn.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            pn.paragraph_format.space_before = Pt(2)
-            pn.paragraph_format.space_after = Pt(2)
+            pn.paragraph_format.space_before = Pt(1)
+            pn.paragraph_format.space_after = Pt(1)
+            pn.paragraph_format.line_spacing = LINE_SPACING
             rn = pn.add_run(f"({eq_num})")
-            rn.font.name = "Times New Roman"
-            rn.font.size = Pt(10.0)
+            rn.font.name = FONT_FAMILY
+            rn.font.size = Pt(BODY_PT)
 
             first_para_after_heading = True
             i += 1
             continue
 
-        # Figure block: %FIG id | filename | caption
+        # Figure block
         if line.startswith("%FIG "):
             parts = [x.strip() for x in line[5:].split("|", 2)]
             fid, fname, cap = parts[0], parts[1], parts[2]
@@ -620,28 +577,27 @@ def build_docx(md_path: str, out_docx: str) -> dict:
 
             pf = doc.add_paragraph()
             pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            pf.paragraph_format.space_before = Pt(8)
-            pf.paragraph_format.space_after = Pt(3)
+            pf.paragraph_format.space_before = Pt(3)
+            pf.paragraph_format.space_after = Pt(1)
+            pf.paragraph_format.line_spacing = LINE_SPACING
             pf.paragraph_format.keep_with_next = True
-            width_in = 6.45 if fname == "fig1_architecture.png" else 6.20
-            pf.add_run().add_picture(fpath, width=Inches(width_in))
+            w_in = min(content_width_in, fig_width_in + (0.25 if fname == "fig1_architecture.png" else 0.0))
+            pf.add_run().add_picture(fpath, width=Inches(w_in))
 
             pc = doc.add_paragraph()
             pc.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            pc.paragraph_format.left_indent = Inches(0.20)
-            pc.paragraph_format.right_indent = Inches(0.20)
             pc.paragraph_format.space_before = Pt(0)
-            pc.paragraph_format.space_after = Pt(9)
-            pc.paragraph_format.line_spacing = 1.08
+            pc.paragraph_format.space_after = Pt(6)
+            pc.paragraph_format.line_spacing = LINE_SPACING
             rl = pc.add_run(f"Fig. {fnum}. ")
-            rl.font.name = "Times New Roman"
-            rl.font.size = Pt(8.5)
+            rl.font.name = FONT_FAMILY
+            rl.font.size = Pt(BODY_PT)
             rl.bold = True
-            add_rich_text(pc, cap, base_size=8.5)
+            add_rich_text(pc, cap, base_size=BODY_PT)
             i += 1
             continue
 
-        # Table block: %TABLE id | caption ... rows ... %ENDTABLE
+        # Table block
         if line.startswith("%TABLE "):
             parts = [x.strip() for x in line[7:].split("|", 1)]
             tid, cap = parts[0], parts[1]
@@ -652,52 +608,40 @@ def build_docx(md_path: str, out_docx: str) -> dict:
                 rline = lines[i].strip()
                 if rline.startswith("|"):
                     cells = [c.strip() for c in rline.strip("|").split("|")]
-                    # Skip markdown separator rows like |---|---|
                     if not all(re.fullmatch(r"[-:\s]+", c) for c in cells):
                         rows_raw.append(cells)
                 i += 1
             i += 1  # consume %ENDTABLE
 
-            # IEEE table caption goes ABOVE the table: TABLE I (centered) + caption
-            pt = doc.add_paragraph()
-            pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            pt.paragraph_format.space_before = Pt(9)
-            pt.paragraph_format.space_after = Pt(1.5)
-            pt.paragraph_format.keep_with_next = True
-            rt = pt.add_run(f"TABLE {tnum}")
-            rt.font.name = "Times New Roman"
-            rt.font.size = Pt(8.5)
-            rt.bold = True
-
             pc = doc.add_paragraph()
             pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            pc.paragraph_format.left_indent = Inches(0.25)
-            pc.paragraph_format.right_indent = Inches(0.25)
-            pc.paragraph_format.space_before = Pt(0)
-            pc.paragraph_format.space_after = Pt(4)
-            pc.paragraph_format.line_spacing = 1.06
+            pc.paragraph_format.space_before = Pt(6)
+            pc.paragraph_format.space_after = Pt(3)
+            pc.paragraph_format.line_spacing = LINE_SPACING
             pc.paragraph_format.keep_with_next = True
-            add_rich_text(pc, cap, base_size=8.5)
+            rt = pc.add_run(f"TABLE {tnum}: ")
+            rt.font.name = FONT_FAMILY
+            rt.font.size = Pt(BODY_PT)
+            rt.bold = True
+            add_rich_text(pc, cap, base_size=BODY_PT)
 
             ncols = max(len(r) for r in rows_raw)
             tbl = doc.add_table(rows=len(rows_raw), cols=ncols)
             tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
             tbl.autofit = True
 
-            # Compute proportional column widths based on max text length
             col_weights = []
             for c_idx in range(ncols):
                 max_len = max(
                     (len(re.sub(r"[$*`]", "", r[c_idx])) for r in rows_raw if c_idx < len(r)),
                     default=8,
                 )
-                col_weights.append(max(7.0, min(float(max_len), 34.0)))
+                col_weights.append(max(7.0, min(float(max_len), 32.0)))
             total_w = sum(col_weights)
-            col_inches = [6.55 * w / total_w for w in col_weights]
+            col_inches = [content_width_in * w / total_w for w in col_weights]
 
             for r_idx, rdata in enumerate(rows_raw):
                 row = tbl.rows[r_idx]
-                # Prevent row splitting across pages
                 trPr = row._tr.get_or_add_trPr()
                 trPr.append(OxmlElement("w:cantSplit"))
                 if r_idx == 0:
@@ -717,7 +661,7 @@ def build_docx(md_path: str, out_docx: str) -> dict:
                     cell.width = Inches(col_inches[c_idx])
                     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                     set_cell_borders(cell, top=top_b, bottom=bot_b)
-                    set_cell_margins(cell, top=48, bottom=48, left=65, right=65)
+                    set_cell_margins(cell, top=14, bottom=14, left=42, right=42)
                     if is_header:
                         shade_cell(cell, "F2F4F7")
                     elif r_idx % 2 == 0:
@@ -727,65 +671,38 @@ def build_docx(md_path: str, out_docx: str) -> dict:
                     cp.alignment = (
                         WD_ALIGN_PARAGRAPH.LEFT if c_idx == 0 else WD_ALIGN_PARAGRAPH.CENTER
                     )
-                    # Left-align descriptive last columns in Tables I & III
                     if ncols >= 5 and c_idx in (1, ncols - 1) and tid in ("related", "cohorts"):
                         cp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                    cp.paragraph_format.space_before = Pt(1)
-                    cp.paragraph_format.space_after = Pt(1)
-                    cp.paragraph_format.line_spacing = 1.05
+                    cp.paragraph_format.space_before = Pt(0)
+                    cp.paragraph_format.space_after = Pt(0)
+                    cp.paragraph_format.line_spacing = LINE_SPACING
                     val = rdata[c_idx] if c_idx < len(rdata) else ""
-                    add_rich_text(cp, val, base_size=8.2, base_bold=is_header)
-
-            sp = doc.add_paragraph()
-            sp.paragraph_format.space_before = Pt(0)
-            sp.paragraph_format.space_after = Pt(4)
+                    add_rich_text(cp, val, base_size=table_pt, base_bold=is_header)
             continue
 
-        # Bullet item (- ...)
+        # Bullet item
         if line.startswith("- "):
             btext = line[2:].strip()
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.left_indent = Inches(0.28)
-            p.paragraph_format.first_line_indent = Inches(-0.14)
-            p.paragraph_format.space_before = Pt(1.5)
-            p.paragraph_format.space_after = Pt(3.0)
-            p.paragraph_format.line_spacing = 1.13
-            rb = p.add_run("\u2022  ")
-            rb.font.name = "Times New Roman"
-            rb.font.size = Pt(10.0)
+            p.paragraph_format.left_indent = Inches(0.30)
+            p.paragraph_format.first_line_indent = Inches(-0.16)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(para_after_pt)
+            p.paragraph_format.line_spacing = LINE_SPACING
+            rb = p.add_run("\u2022 ")
+            rb.font.name = FONT_FAMILY
+            rb.font.size = Pt(BODY_PT)
             rb.bold = True
-            add_rich_text(p, btext, base_size=10.0)
+            add_rich_text(p, btext, base_size=BODY_PT)
             first_para_after_heading = False
             i += 1
             continue
 
-        # Numbered IEEE sub-item e.g. "1) **Site-local DP-SGD.** ..."
-        m_num = re.match(r"^(\d+\))\s+(.*)$", line)
-        if m_num:
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.first_line_indent = Inches(0.20)
-            p.paragraph_format.space_before = Pt(2)
-            p.paragraph_format.space_after = Pt(3.5)
-            p.paragraph_format.line_spacing = 1.14
-            rn = p.add_run(m_num.group(1) + " ")
-            rn.font.name = "Times New Roman"
-            rn.font.size = Pt(10.0)
-            add_rich_text(p, m_num.group(2), base_size=10.0)
-            first_para_after_heading = False
-            i += 1
-            continue
-
-        # Regular body paragraph (merge wrapped consecutive non-special lines if any)
+        # Regular paragraph
         para_lines = [line]
         i += 1
-        while (
-            i < n
-            and lines[i].strip()
-            and not lines[i].startswith(("%", "#", "- "))
-            and not re.match(r"^\d+\)\s+", lines[i])
-        ):
+        while i < n and lines[i].strip() and not lines[i].startswith(("%", "#", "- ")):
             para_lines.append(lines[i].strip())
             i += 1
         body = " ".join(para_lines)
@@ -793,25 +710,26 @@ def build_docx(md_path: str, out_docx: str) -> dict:
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         p.paragraph_format.first_line_indent = (
-            Inches(0.0) if first_para_after_heading else Inches(0.20)
+            Inches(0.0) if first_para_after_heading else Inches(0.25)
         )
         p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(4.0)
-        p.paragraph_format.line_spacing = 1.15
-        add_rich_text(p, body, base_size=10.0)
+        p.paragraph_format.space_after = Pt(para_after_pt)
+        p.paragraph_format.line_spacing = LINE_SPACING
+        add_rich_text(p, body, base_size=BODY_PT)
         first_para_after_heading = False
 
     # ------------------------------------------------------------------
-    # IEEE REFERENCES SECTION (strictly ordered [1]..[N] by first appearance)
+    # IEEE REFERENCES SECTION ([1]..[N] in order of first appearance, with DOIs)
     # ------------------------------------------------------------------
     ph = doc.add_paragraph()
     ph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    ph.paragraph_format.space_before = Pt(14)
-    ph.paragraph_format.space_after = Pt(6)
+    ph.paragraph_format.space_before = Pt(10)
+    ph.paragraph_format.space_after = Pt(4)
+    ph.paragraph_format.line_spacing = LINE_SPACING
     ph.paragraph_format.keep_with_next = True
     rh = ph.add_run("REFERENCES")
-    rh.font.name = "Times New Roman"
-    rh.font.size = Pt(10.5)
+    rh.font.name = FONT_FAMILY
+    rh.font.size = Pt(BODY_PT)
     rh.bold = True
 
     ordered_handles = sorted(cite_order.items(), key=lambda kv: kv[1])
@@ -819,15 +737,15 @@ def build_docx(md_path: str, out_docx: str) -> dict:
         entry = REFS[handle]
         pr = doc.add_paragraph()
         pr.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        pr.paragraph_format.left_indent = Inches(0.32)
-        pr.paragraph_format.first_line_indent = Inches(-0.32)
+        pr.paragraph_format.left_indent = Inches(0.42)
+        pr.paragraph_format.first_line_indent = Inches(-0.42)
         pr.paragraph_format.space_before = Pt(0)
-        pr.paragraph_format.space_after = Pt(2.8)
-        pr.paragraph_format.line_spacing = 1.08
+        pr.paragraph_format.space_after = Pt(0.0)
+        pr.paragraph_format.line_spacing = LINE_SPACING
         lbl = pr.add_run(f"[{num}]\t")
-        lbl.font.name = "Times New Roman"
-        lbl.font.size = Pt(8.8)
-        add_rich_text(pr, entry, base_size=8.8)
+        lbl.font.name = FONT_FAMILY
+        lbl.font.size = Pt(BODY_PT)
+        add_rich_text(pr, entry, base_size=BODY_PT)
 
     os.makedirs(os.path.dirname(out_docx), exist_ok=True)
     doc.save(out_docx)
@@ -840,16 +758,16 @@ def build_docx(md_path: str, out_docx: str) -> dict:
     }
 
 
-def convert_docx_to_doc(in_docx: str, out_doc: str) -> int:
+def convert_docx_to_doc_and_count_pages(in_docx: str, out_doc: str) -> tuple[int, int]:
     from spire.doc import Document as SpireDocument
     from spire.doc import FileFormat
 
     sdoc = SpireDocument()
     sdoc.LoadFromFile(in_docx)
+    pages = sdoc.GetPageCount()
     sdoc.SaveToFile(out_doc, FileFormat.Doc)
     sdoc.Close()
 
-    # Replace the converter's embedded header banner with an exact-length IEEE preprint Slug
     warn = "Evaluation Warning: The document was created with Spire.Doc for Python."
     slug = ("IEEE Transactions / Journal Preprint  |  FedWear-Sepsis  (Nov. 2026)").ljust(
         len(warn)
@@ -859,7 +777,7 @@ def convert_docx_to_doc(in_docx: str, out_doc: str) -> int:
     patched = raw.replace(warn.encode("utf-16-le"), slug.encode("utf-16-le"))
     with open(out_doc, "wb") as f:
         f.write(patched)
-    return os.path.getsize(out_doc)
+    return os.path.getsize(out_doc), pages
 
 
 if __name__ == "__main__":
@@ -873,8 +791,7 @@ if __name__ == "__main__":
         "Edge_AI_Federated_Learning_Sepsis_Risk_Stratification_IEEE.doc",
     )
     stats = build_docx(md_in, out_docx)
-    doc_bytes = convert_docx_to_doc(out_docx, out_doc)
+    doc_bytes, pages = convert_docx_to_doc_and_count_pages(out_docx, out_doc)
     stats["doc_bytes"] = doc_bytes
+    stats["pages"] = pages
     print("BUILD COMPLETE:", stats)
-    print("DOC:", out_doc)
-    print("DOCX:", out_docx)

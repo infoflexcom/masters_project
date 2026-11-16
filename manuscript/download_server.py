@@ -161,36 +161,36 @@ def render_preview_html() -> bytes:
     max-width:820px; margin:26px auto 60px; background:#fff; padding:54px 62px;
     box-shadow:0 3px 18px rgba(16,42,67,.09); border-radius:3px;
   }}
-  .paper-title {{ text-align:center; font-size:24px; line-height:1.25; margin:0 0 12px; }}
-  .authors {{ text-align:center; font-size:15px; margin:0 0 8px; }}
-  .affil {{ text-align:center; font-size:12px; color:#3b444c; margin:2px 28px; line-height:1.35; }}
-  .abstract, .keywords {{ font-size:13px; font-weight:600; text-align:justify; margin:14px 26px 8px; line-height:1.42; }}
-  .sep {{ border:0; border-top:1px solid #bbb; margin:16px 0 20px; }}
-  .sec {{ text-align:center; font-size:14.5px; letter-spacing:.4px; margin:24px 0 8px; }}
-  .subsec {{ font-size:14px; font-style:italic; margin:16px 0 6px; }}
-  .para {{ font-size:14px; line-height:1.52; text-align:justify; margin:0 0 9px; text-indent:1.6em; }}
-  .bullet {{ font-size:14px; line-height:1.48; text-align:justify; margin:4px 0 6px 1.6em; }}
-  .eq {{ display:flex; justify-content:space-between; align-items:center; margin:12px 18px; font-size:14.5px; }}
+  .paper-title {{ text-align:center; font-size:18px; line-height:1.5; margin:0 0 10px; }}
+  .authors {{ text-align:center; font-size:16px; line-height:1.5; margin:0 0 6px; }}
+  .affil {{ text-align:center; font-size:16px; color:#3b444c; margin:2px 16px; line-height:1.5; }}
+  .abstract, .keywords {{ font-size:16px; text-align:justify; margin:12px 0 8px; line-height:1.5; }}
+  .sep {{ border:0; border-top:1px solid #bbb; margin:14px 0 18px; }}
+  .sec {{ text-align:center; font-size:16px; letter-spacing:.3px; line-height:1.5; margin:20px 0 6px; }}
+  .subsec {{ font-size:16px; font-style:italic; line-height:1.5; margin:14px 0 4px; }}
+  .para {{ font-size:16px; line-height:1.5; text-align:justify; margin:0 0 6px; text-indent:1.6em; }}
+  .bullet {{ font-size:16px; line-height:1.5; text-align:justify; margin:4px 0 6px 1.6em; }}
+  .eq {{ display:flex; justify-content:space-between; align-items:center; margin:10px 16px; font-size:16px; line-height:1.5; }}
   .eq-expr {{ flex:1; text-align:center; font-style:italic; }}
   .math {{ font-style:italic; }}
-  .fig {{ margin:18px 0; text-align:center; }}
-  .fig img {{ max-width:100%; height:auto; border:1px solid #e6e9ed; }}
-  .fig figcaption {{ font-size:12px; text-align:justify; margin:6px 18px 0; line-height:1.38; }}
-  .tbl-wrap {{ margin:18px 0; overflow-x:auto; }}
-  .tbl-cap {{ text-align:center; font-size:12px; margin-bottom:6px; line-height:1.35; }}
-  .ieee-tbl {{ width:100%; border-collapse:collapse; font-size:11.8px; }}
-  .ieee-tbl thead th {{ border-top:2px solid #182026; border-bottom:1px solid #182026; background:#f2f4f7; padding:6px 8px; text-align:left; }}
-  .ieee-tbl tbody td {{ padding:5px 8px; border-bottom:1px solid #e6e9ed; }}
+  .fig {{ margin:16px 0; text-align:center; }}
+  .fig img {{ max-width:85%; height:auto; border:1px solid #e6e9ed; }}
+  .fig figcaption {{ font-size:16px; text-align:justify; margin:6px 0 0; line-height:1.5; }}
+  .tbl-wrap {{ margin:16px 0; overflow-x:auto; }}
+  .tbl-cap {{ text-align:center; font-size:16px; margin-bottom:6px; line-height:1.5; }}
+  .ieee-tbl {{ width:100%; border-collapse:collapse; font-size:14.5px; line-height:1.5; }}
+  .ieee-tbl thead th {{ border-top:2px solid #182026; border-bottom:1px solid #182026; background:#f2f4f7; padding:5px 7px; text-align:left; }}
+  .ieee-tbl tbody td {{ padding:4px 7px; border-bottom:1px solid #e6e9ed; }}
   .ieee-tbl tbody tr:last-child td {{ border-bottom:2px solid #182026; }}
-  .refs {{ font-size:12.3px; line-height:1.42; padding-left:28px; }}
-  .refs li {{ margin-bottom:5px; text-align:justify; }}
+  .refs {{ font-size:16px; line-height:1.5; padding-left:32px; }}
+  .refs li {{ margin-bottom:4px; text-align:justify; }}
 </style>
 </head>
 <body>
   <div class="topbar">
     <div class="meta">
-      <strong>Edge-AI Federated Learning for Sepsis Risk Stratification (IEEE Format)</strong>
-      Word 97–2003 Binary Document (.doc, {doc_kb} KB) · 5 Figures · 6 Tables · 53 IEEE References
+      <strong>Edge-AI Federated Learning for Sepsis Risk Stratification (IEEE · 16 Pages)</strong>
+      Times New Roman · 12 pt · 1.5 Line Spacing · Simple English · 53 IEEE Refs with DOIs (.doc, {doc_kb} KB)
     </div>
     <div class="actions">
       <a class="btn btn-primary" href="/download/Edge_AI_Federated_Learning_Sepsis_Risk_Stratification_IEEE.doc" download="Edge_AI_Federated_Learning_Sepsis_Risk_Stratification_IEEE.doc">⬇ Download .doc ({doc_kb} KB)</a>
